@@ -27,12 +27,12 @@ jobs:
           node-version: '24.x'
           cache: 'npm'
 
-      - name: Install @gluwa/asc-sdk from source
+      - name: Install @gluwa/attestcoin-sdk from source
         run: |
           npm install
           npm run build
           npm pack
-          npm install ./gluwa-asc-sdk-*.tgz
+          npm install ./gluwa-attestcoin-sdk-*.tgz
 
       - name: Execute examples
         env:
