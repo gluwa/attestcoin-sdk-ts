@@ -1,5 +1,8 @@
 # Attestcoin SDK (TypeScript)
 
+[![Tests](https://github.com/gluwa/attestcoin-sdk-ts/actions/workflows/unit-tests.yaml/badge.svg)](https://github.com/gluwa/attestcoin-sdk-ts/actions/workflows/unit-tests.yaml)
+[![npm version](https://img.shields.io/npm/v/@gluwa/attestcoin-sdk)](https://www.npmjs.com/package/@gluwa/attestcoin-sdk)
+
 SDK for JS/TS used for interacting with the Attestcoin ecosystem on the CTC chain through a variety of tools. To
 use it simply add the following package to your dependencies:
 
