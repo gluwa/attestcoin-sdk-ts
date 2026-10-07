@@ -11,8 +11,7 @@ import { blockProver, chainInfo, proofProvider } from '../';
 import { blockNumberFromPath, isExpectedProofSkip, ProofSkipReason, sampleEvenly } from './decode-policy';
 
 type ProofLookup =
-  | { response: proofProvider.ContinuityResponse; skipReason: null }
-  | { response: null; skipReason: ProofSkipReason };
+  { response: proofProvider.ContinuityResponse; skipReason: null } | { response: null; skipReason: ProofSkipReason };
 
 async function getProofForTxn(
   apiUrl: string,
