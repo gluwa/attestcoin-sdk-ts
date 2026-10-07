@@ -1,7 +1,7 @@
 use alloy::{
     primitives::B256,
     providers::{Provider, ProviderBuilder, WsConnect},
-    rpc::types::{BlockTransactionsKind, TransactionReceipt},
+    rpc::types::TransactionReceipt,
 };
 
 use anyhow::Result;
@@ -13,8 +13,8 @@ use std::fs;
 use std::str::FromStr;
 use std::time::SystemTime;
 
-use usc_abi_encoding::abi::abi_encode;
-use usc_abi_encoding::common::EncodingVersion;
+use attestcoin_abi_encoding::abi::abi_encode;
+use attestcoin_abi_encoding::common::EncodingVersion;
 
 #[derive(Parser, Debug)]
 #[command(name = "encode-blocks")]
@@ -105,7 +105,8 @@ async fn block_handler(
     let mut last_err: Option<anyhow::Error> = None;
     for attempt in 1..=MAX_ATTEMPTS {
         match provider
-            .get_block_by_number(block_number.into(), BlockTransactionsKind::Full)
+            .get_block_by_number(block_number.into())
+            .full()
             .await
         {
             Ok(Some(b)) => {
@@ -210,7 +211,7 @@ async fn main() -> Result<()> {
     fs::create_dir_all(args.path_to_store_json.clone())?;
 
     let provider = ProviderBuilder::new()
-        .on_ws(WsConnect::new(args.eth_rpc_url))
+        .connect_ws(WsConnect::new(args.eth_rpc_url))
         .await?;
 
     let subscriber = provider.subscribe_blocks().await?;
