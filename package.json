@@ -5,7 +5,7 @@
     "type": "git",
     "url": "https://github.com/gluwa/attestcoin-sdk-ts"
   },
-  "description": "Typescript SDK for building and submitting proofs with the Attestcoin protocol on the Gluwa Creditcoin Network",
+  "description": "Typescript SDK for building and submitting proofs within the Attestcoin ecosystem on the Gluwa CTC network",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
