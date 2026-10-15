@@ -1,3 +1,18 @@
+/**
+ * ABI encoding of transactions and their receipts into Merkle leaves.
+ *
+ * The encodings are grouped in one submodule per transaction **family**, because each family
+ * has its own leaf layouts. Inside a family, one file per **encoding version** (`v1.ts`, ...)
+ * holds that version's layout, and the family's `index.ts` documents the layout and picks the
+ * file for a given {@link EncodingVersion}:
+ *
+ * - [`ethereum/`](./ethereum/index.ts): types `0x0`-`0x4`.
+ * - [`op-stack/`](./op-stack/index.ts): the OP-Stack `0x7e` deposit.
+ *
+ * This file only dispatches on the family (see {@link TxRxInput}). To support a new family, add
+ * a submodule following the same shape and a variant to {@link TxRxInput}; to add an encoding
+ * version, add a variant to {@link EncodingVersion} (in `common.ts`) and a file to every family.
+ */
 import { abiEncode as abiEncodeEthereum } from './ethereum';
 import { abiEncode as abiEncodeOpStack, DepositReceipt, DepositTransaction } from './op-stack';
 import { TransactionReceipt } from 'ethers';
