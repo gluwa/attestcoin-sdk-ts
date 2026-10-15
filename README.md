@@ -92,7 +92,7 @@ and parsing it out of an RPC response is up to the caller. Set its `nonce` with
 onward, zero before, because neither header root commits to the RPC nonce before Canyon.
 `encoding.opStack.computedHash(deposit)` reproduces the transaction hash, which lets you check an RPC-reported hash
 against the fields you parsed. The leaf layout (`txType = 126`, three chunks) is documented in
-[src/encoding/abi/op-stack.ts](https://github.com/gluwa/attestcoin-sdk-ts/blob/main/src/encoding/abi/op-stack.ts).
+[src/encoding/abi/op-stack/index.ts](https://github.com/gluwa/attestcoin-sdk-ts/blob/main/src/encoding/abi/op-stack/index.ts).
 The Query Builder has no `0x7e` field mapping yet, so deposits cannot be queried field by field.
 
 ## Query Builder
