@@ -8,7 +8,13 @@ import { getTransactionWithRaw } from '../encoding';
 import { decoder, health, rateLimit } from '../utils';
 import EvmV1DecoderABI from '../utils/evmV1DecoderAbi.json';
 import { blockProver, chainInfo, proofProvider } from '../';
-import { blockNumberFromPath, isExpectedProofSkip, ProofSkipReason, sampleEvenly } from './decode-policy';
+import {
+  blockNumberFromPath,
+  isExpectedProofSkip,
+  ProofSkipReason,
+  retryWhileArchiverCatchingUp,
+  sampleEvenly,
+} from './decode-policy';
 import { runDecodeCheck } from './decode-check';
 
 type ProofLookup =
@@ -22,10 +28,15 @@ async function getProofForTxn(
 ): Promise<ProofLookup> {
   const url = `${apiUrl}/api/v1/proof-by-tx/${chainKey}/${txn}`;
   try {
-    // NOTE: throws an exception in case of errors
-    const response = await rateLimit.withRateLimitRetry('proof-by-tx', () => axios.get(url), {
-      onRateLimited: () => pacer.slowDown(),
-    });
+    // NOTE: throws an exception in case of errors.
+    // The archiver stores attested ranges a little after they are attested, so
+    // a lookup that lands in that gap gets a retriable 422 'ArchiverCatchingUp';
+    // keep asking until it has caught up instead of failing the run.
+    const response = await retryWhileArchiverCatchingUp(`proof-by-tx ${txn}`, () =>
+      rateLimit.withRateLimitRetry('proof-by-tx', () => axios.get(url), {
+        onRateLimited: () => pacer.slowDown(),
+      }),
+    );
     return { response: response.data as proofProvider.ContinuityResponse, skipReason: null };
   } catch (error) {
     // The prover returns HTTP 422 with code 'EmptyBlockTxProof' for blocks

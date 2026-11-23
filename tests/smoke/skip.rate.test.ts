@@ -1,5 +1,11 @@
 import { describe, expect, test } from '@jest/globals';
-import { blockNumberFromPath, isExpectedProofSkip, sampleEvenly } from '../../src/bin/decode-policy';
+import {
+  blockNumberFromPath,
+  isArchiverCatchingUp,
+  isExpectedProofSkip,
+  retryWhileArchiverCatchingUp,
+  sampleEvenly,
+} from '../../src/bin/decode-policy';
 import { health } from '../../src/utils';
 
 const MAX_UNEXPECTED_SKIP_RATE = 0.9;
@@ -86,5 +92,63 @@ describe('sampleEvenly', () => {
     // reaches into the last stride, i.e. the newest blocks are represented
     expect(sampled[sampled.length - 1]).toBeGreaterThan(5142 - Math.ceil(5142 / 150) - 1);
     expect(new Set(sampled).size).toBe(150);
+  });
+});
+
+describe('retryWhileArchiverCatchingUp', () => {
+  // the exact shape the devnet prover returned in the run that motivated this
+  const catchingUp = {
+    response: {
+      status: 422,
+      data: {
+        code: 'ArchiverCatchingUp',
+        message: 'block range 26470611..26470640 is attested but the archiver has only stored up to 26470632 so far',
+        retriable: true,
+      },
+    },
+  };
+  const notReady = { response: { status: 422, data: { code: 'BlockNotReady' } } };
+
+  const failing = (times: number, error: unknown) => {
+    let calls = 0;
+    const op = async () => {
+      calls += 1;
+      if (calls <= times) throw error;
+      return 'proof';
+    };
+    return { op, calls: () => calls };
+  };
+
+  test('recognises only the archiver-catching-up 422', () => {
+    expect(isArchiverCatchingUp(catchingUp)).toBe(true);
+    expect(isArchiverCatchingUp(notReady)).toBe(false);
+    expect(isArchiverCatchingUp(new Error('boom'))).toBe(false);
+    expect(isArchiverCatchingUp(undefined)).toBe(false);
+  });
+
+  test('retries every interval until the archiver catches up', async () => {
+    const sleeps: number[] = [];
+    const { op, calls } = failing(3, catchingUp);
+    const result = await retryWhileArchiverCatchingUp('t', op, {
+      sleep: async (ms) => void sleeps.push(ms),
+    });
+    expect(result).toBe('proof');
+    expect(calls()).toBe(4);
+    expect(sleeps).toEqual([5000, 5000, 5000]);
+  });
+
+  test('gives up once the wait budget is spent', async () => {
+    const { op, calls } = failing(Infinity, catchingUp);
+    await expect(
+      retryWhileArchiverCatchingUp('t', op, { intervalMs: 5000, maxWaitMs: 15000, sleep: async () => {} }),
+    ).rejects.toBe(catchingUp);
+    // the initial try plus three retries spaced 5s apart fills the 15s budget
+    expect(calls()).toBe(4);
+  });
+
+  test('does not retry other errors', async () => {
+    const { op, calls } = failing(1, notReady);
+    await expect(retryWhileArchiverCatchingUp('t', op, { sleep: async () => {} })).rejects.toBe(notReady);
+    expect(calls()).toBe(1);
   });
 });

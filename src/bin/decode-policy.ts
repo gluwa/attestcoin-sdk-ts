@@ -96,3 +96,82 @@ export function sampleEvenly<T>(items: T[], limit: number): T[] {
 
   return sampled;
 }
+
+/** How long to wait between proof lookups while the archiver catches up. */
+export const ARCHIVER_RETRY_INTERVAL_MS = 5_000;
+
+/**
+ * How long to keep waiting on a lagging archiver before failing the run. A
+ * healthy archiver closes the gap well within this, so hitting the cap means it
+ * is stuck rather than slow, and that should still surface as a failure.
+ */
+export const ARCHIVER_MAX_WAIT_MS = 2 * 60_000;
+
+/**
+ * True when the prover rejected a lookup because the block range is attested
+ * but the archiver has not finished storing it yet (HTTP 422,
+ * `code: 'ArchiverCatchingUp'`). The prover flags this as retriable: the proof
+ * will exist shortly, so the lookup should be repeated rather than skipped.
+ *
+ * @param error - the value caught from the proof lookup
+ */
+export function isArchiverCatchingUp(error: unknown): boolean {
+  const response = (error as { response?: { status?: unknown; data?: { code?: unknown } } })?.response;
+  return response?.status === 422 && response.data?.code === 'ArchiverCatchingUp';
+}
+
+export interface ArchiverRetryOptions {
+  /** delay between attempts; defaults to {@link ARCHIVER_RETRY_INTERVAL_MS} */
+  intervalMs?: number;
+  /** give up once this much time has been spent waiting; defaults to {@link ARCHIVER_MAX_WAIT_MS} */
+  maxWaitMs?: number;
+  /** injectable for tests */
+  sleep?: (ms: number) => Promise<void>;
+}
+
+/**
+ * Runs `operation`, repeating it every `intervalMs` for as long as it fails with
+ * {@link isArchiverCatchingUp}, up to `maxWaitMs` of total waiting. Any other
+ * error, or the archiver still lagging once the budget is spent, is thrown.
+ *
+ * @param label - name used in the retry log line
+ * @param operation - the (idempotent) lookup to run
+ * @param opts - see {@link ArchiverRetryOptions}
+ *
+ * @example
+ * ```ts
+ * const response = await retryWhileArchiverCatchingUp('proof-by-tx 0xabc', () => axios.get(url));
+ * ```
+ */
+export async function retryWhileArchiverCatchingUp<T>(
+  label: string,
+  operation: () => Promise<T>,
+  opts: ArchiverRetryOptions = {},
+): Promise<T> {
+  const {
+    intervalMs = ARCHIVER_RETRY_INTERVAL_MS,
+    maxWaitMs = ARCHIVER_MAX_WAIT_MS,
+    sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+  } = opts;
+
+  let waitedMs = 0;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      const result = await operation();
+      if (waitedMs > 0) {
+        console.log(`    ... archiver caught up for ${label} after ~${waitedMs / 1000}s`);
+      }
+      return result;
+    } catch (error) {
+      if (!isArchiverCatchingUp(error) || waitedMs + intervalMs > maxWaitMs) {
+        throw error;
+      }
+      const detail = (error as { response?: { data?: { message?: unknown } } }).response?.data?.message;
+      console.warn(
+        `    ... archiver catching up on ${label} (attempt ${attempt}, waited ~${waitedMs / 1000}s): ${detail ?? 'no detail'}; retrying in ${intervalMs / 1000}s`,
+      );
+      await sleep(intervalMs);
+      waitedMs += intervalMs;
+    }
+  }
+}
